@@ -11,12 +11,8 @@ describe 'Time trackers API', type: :request do
       include_examples 'access rights', :hourglass_view_tracked_time, :hourglass_view_own_tracked_time
 
       response '200', 'time trackers found' do
-        schema type: 'array',
-               items: {
-                   '$ref' => '#/definitions/time_tracker',
-                   required: %w(id start user_id created_at updated_at)
-               },
-               title: 'Array'
+        schema '$ref' => '#/definitions/index_response'
+        
         let(:user) { create :user, :as_member, permissions: [:hourglass_view_tracked_time] }
 
         before do
@@ -30,13 +26,16 @@ describe 'Time trackers API', type: :request do
 
         it 'returns correct data' do
           data = JSON.parse(response.body, symbolize_names: true)
-          expect(data.length).to eq 2
-          expect(data.first[:id]).to eq @time_tracker.id
-          expect(Time.parse data.first[:start]).to eq @time_tracker.start
-          expect(data.first[:user_id]).to eq @time_tracker.user_id
-          expect(data.second[:comments]).to eq @time_tracker2.comments
-          expect(data.second[:project_id]).to eq @time_tracker2.project_id
-          expect(data.second[:activity_id]).to eq @time_tracker2.activity_id
+          expect(data[:count]).to eq 2
+          first, second = data[:records]
+          if first[:id] != @time_tracker.id
+            second, first = [first, second]
+          end
+          expect(Time.parse first[:start]).to eq @time_tracker.start
+          expect(first[:user_id]).to eq @time_tracker.user_id
+          expect(second[:comments]).to eq @time_tracker2.comments
+          expect(second[:project_id]).to eq @time_tracker2.project_id
+          expect(second[:activity_id]).to eq @time_tracker2.activity_id
         end
       end
     end
@@ -71,6 +70,18 @@ describe 'Time trackers API', type: :request do
           data = JSON.parse(response.body, symbolize_names: true)
           expect(data[:user_id]).to eq user.id
           expect(data[:comments]).to eq time_tracker[:time_tracker][:comments]
+        end
+
+        context 'with project id' do
+          let(:time_tracker) { {time_tracker: {comments: 'test', project_id: user.projects.first.id}} }
+          let(:user) { create :user, :as_member, permissions: [:hourglass_track_time, :hourglass_book_time] }
+
+          it 'returns correct data' do
+            data = JSON.parse(response.body, symbolize_names: true)
+            expect(data[:user_id]).to eq user.id
+            expect(data[:comments]).to eq time_tracker[:time_tracker][:comments]
+            expect(data[:project_id]).to eq time_tracker[:time_tracker][:project_id]
+          end
         end
       end
     end
@@ -119,7 +130,7 @@ describe 'Time trackers API', type: :request do
       end
       let(:id) { time_tracker.id }
 
-      include_examples 'access rights', :hourglass_edit_tracked_time, :hourglass_edit_own_tracked_time, success_code: '204'
+      include_examples 'access rights', :hourglass_track_time, :hourglass_edit_tracked_time, :hourglass_edit_own_tracked_time, success_code: '204'
 
       include_examples 'not found'
 
@@ -170,7 +181,7 @@ describe 'Time trackers API', type: :request do
       tags 'Time trackers'
       parameter name: :id, in: :path, type: :string
 
-      let(:user) { create :user, :as_member, permissions: [:hourglass_track_time] }
+      let(:user) { create :user, :as_member, permissions: [:hourglass_track_time, :hourglass_book_time] }
       let(:time_tracker) do
         User.current = user
         Hourglass::TimeTracker.start comments: 'test'
@@ -226,7 +237,7 @@ describe 'Time trackers API', type: :request do
 
       let(:'time_trackers[]') { time_tracker_ids }
 
-      include_examples 'access rights', :hourglass_edit_tracked_time, :hourglass_edit_own_tracked_time
+      include_examples 'access rights', :hourglass_track_time, :hourglass_edit_tracked_time, :hourglass_edit_own_tracked_time
 
       response '200', 'time trackers found' do
         run_test!

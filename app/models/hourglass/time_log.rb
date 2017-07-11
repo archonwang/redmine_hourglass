@@ -9,12 +9,14 @@ module Hourglass
     has_one :time_booking, dependent: :destroy
     has_one :time_entry, through: :time_booking
 
-    after_initialize :init
+    before_save :remove_seconds
 
     validates_presence_of :user, :start, :stop
     validates_length_of :comments, maximum: 1024, allow_blank: true
     validate :stop_is_valid
     validate :does_not_overlap_with_other, if: [:user, :start?, :stop?]
+
+    delegate :project, to: :time_booking, allow_nil: true
 
     scope :booked_on_project, lambda { |project_id|
       joins(:time_entry).where(time_entries: {project_id: project_id})
@@ -26,11 +28,6 @@ module Hourglass
     scope :overlaps_with, lambda { |start, stop|
       where(arel_table[:start].lt(stop).and(arel_table[:stop].gt(start)))
     }
-
-    def init
-      self.start = start.change(sec: 0) if start
-      self.stop = stop.change(sec: 0) if stop
-    end
 
     def build_time_booking(args = {})
       super time_booking_arguments default_booking_arguments.merge args
@@ -70,11 +67,11 @@ module Hourglass
       end
     end
 
-    def join_with(time_log)
-      return false if stop != time_log.start || booked? || time_log.booked?
-      new_stop = time_log.stop
+    def join_with(other)
+      return false unless joinable? other
+      new_stop = other.stop
       ActiveRecord::Base.transaction do
-        time_log.destroy
+        other.destroy
         update stop: new_stop
       end
       true
@@ -94,6 +91,18 @@ module Hourglass
 
     def as_json(args = {})
       super args.deep_merge methods: :hours
+    end
+
+    def joinable?(other)
+      stop == other.start && bookable? && other.bookable?
+    end
+
+    def self.joinable?(*ids)
+      where(id: ids).order(start: :asc).reduce do |previous, time_log|
+        return false unless previous.joinable?(time_log)
+        time_log
+      end
+      true
     end
 
     private
@@ -120,6 +129,11 @@ module Hourglass
     def does_not_overlap_with_other
       overlapping_time_logs = user.hourglass_time_logs.where.not(id: id).overlaps_with start, stop
       errors.add :base, :overlaps unless overlapping_time_logs.empty?
+    end
+
+    def remove_seconds
+      self.start = start.change(sec: 0) if start
+      self.stop = stop.change(sec: 0) if stop
     end
   end
 end

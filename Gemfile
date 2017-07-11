@@ -5,6 +5,13 @@ gem 'uglifier'
 gem 'coffee-script'
 gem 'sass'
 
+# access control
+gem 'pundit'
+
+# this is useful for unix based systems which don't have a js runtime installed
+# if you are on windows and this makes problems, simply remove the line
+gem 'therubyracer', :platform => :ruby
+
 #views
 gem 'slim'
 gem 'js-routes', '~> 1.3'
@@ -18,6 +25,6 @@ group :development, :test do
   gem 'factory_girl_rails'
   gem 'zonebie'
   gem 'timecop'
-  gem 'faker'
+  gem 'faker', '1.7.3'
   gem 'database_cleaner'
 end

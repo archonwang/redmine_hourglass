@@ -2,24 +2,17 @@ module Hourglass
   class TimeTrackersController < ApiBaseController
     accept_api_auth :index, :show, :start, :update, :bulk_update, :stop, :destroy, :bulk_destroy
 
-    before_action :get_time_tracker, only: [:show, :update, :stop, :destroy]
-    before_action :authorize_global, only: [:index, :show, :start, :stop, :update, :bulk_update, :destroy, :bulk_destroy]
-    before_action :find_project, :authorize_book, only: [:stop]
-    before_action :authorize_foreign, only: [:show, :update, :stop, :destroy]
-    before_action :authorize_update_time, only: [:update]
-
     def index
-      time_trackers = allowed_to?('index_foreign') ? Hourglass::TimeTracker.all : [User.current.hourglass_time_tracker]
-      respond_with_success time_trackers
+      list_records Hourglass::TimeTracker
     end
 
     def show
-      respond_with_success @time_tracker
+      respond_with_success authorize get_time_tracker
     end
 
     def start
-      time_tracker = Hourglass::TimeTracker.start start_time_tracker_params
-      if time_tracker.persisted?
+      time_tracker = authorize Hourglass::TimeTracker.new params[:time_tracker] ? time_tracker_params.except(:start) : {}
+      if time_tracker.save
         respond_with_success time_tracker
       else
         respond_with_error :bad_request, time_tracker.errors.full_messages, array_mode: :sentence
@@ -27,27 +20,24 @@ module Hourglass
     end
 
     def update
-      if @time_tracker.update update_time_tracker_params
-        respond_with_success
-      else
-        respond_with_error :bad_request, @time_tracker.errors.full_messages, array_mode: :sentence
-      end
+      do_update get_time_tracker, time_tracker_params
     end
 
     def bulk_update
+      authorize Hourglass::TimeTracker
       bulk do |id, params|
-        time_tracker = Hourglass::TimeTracker.find_by(id: id) or next
-        next foreign_forbidden_message unless foreign_allowed_to? time_tracker
-        next update_time_forbidden_message unless update_time_allowed? params
-        time_tracker.update params.permit(:start, :project_id, :activity_id, :issue_id, :comments)
-        time_tracker
+        authorize_update time_tracker_from_id(id), time_tracker_params(params)
       end
     end
 
     def stop
-      time_log = @time_tracker.stop
-      time_booking = time_log && time_log.time_booking
-      if @time_tracker.destroyed?
+      time_tracker = authorize get_time_tracker
+      time_log, time_booking = time_tracker.transaction do
+        time_log = time_tracker.stop
+        authorize time_log, :booking_allowed? if time_log && time_tracker.project
+        [time_log, time_log && time_log.time_booking]
+      end
+      if time_tracker.destroyed?
         respond_with_success({time_log: time_log, time_booking: time_booking}.compact)
       else
         error_messages = time_log.errors.full_messages
@@ -57,46 +47,32 @@ module Hourglass
     end
 
     def destroy
-      @time_tracker.destroy
+      authorize(get_time_tracker).destroy
       respond_with_success
     end
 
     def bulk_destroy
+      authorize Hourglass::TimeTracker
       bulk do |id|
-        time_tracker = Hourglass::TimeTracker.find_by(id: id) or next
-        next foreign_forbidden_message unless foreign_allowed_to? time_tracker
-        time_tracker.destroy
+        authorize(time_tracker_from_id id).destroy
       end
     end
 
     private
-    def start_time_tracker_params
-      return unless params[:time_tracker]
-      time_tracker_params = params.require(:time_tracker).permit(:issue_id, :comments)
-      time_tracker_params.delete :comments if time_tracker_params[:issue_id].present?
-      time_tracker_params
-    end
-
-    def update_time_tracker_params
-      params.require(:time_tracker).permit(:start, :comments, :round, :project_id, :issue_id, :activity_id)
+    def time_tracker_params(params_hash = params.require(:time_tracker))
+      params_hash.permit(:start, :comments, :round, :project_id, :issue_id, :activity_id, :user_id)
     end
 
     def get_time_tracker
-      @time_tracker = params[:id] == 'current' ? current_time_tracker : time_tracker_from_id
-      render_404 unless @time_tracker.present?
-      @request_resource = @time_tracker
+      params[:id] == 'current' ? current_time_tracker : time_tracker_from_id
     end
 
     def current_time_tracker
-      User.current.hourglass_time_tracker
+      User.current.hourglass_time_tracker or raise ActiveRecord::RecordNotFound
     end
 
-    def time_tracker_from_id
-      Hourglass::TimeTracker.find_by id: params[:id]
-    end
-
-    def authorize_book
-      super if @project.present?
+    def time_tracker_from_id(id = params[:id])
+      Hourglass::TimeTracker.find id
     end
   end
 end

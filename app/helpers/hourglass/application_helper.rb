@@ -22,14 +22,6 @@ module Hourglass
       super *hourglass_asset_paths(:stylesheet, sources)
     end
 
-    def authorize_globally_for(controller, action)
-      User.current.allowed_to_globally? controller: controller, action: action
-    end
-
-    def allowed_to?(controller, action, context)
-      User.current.allowed_to?({controller: controller, action: action}, context)
-    end
-
     def form_field(field, form, object, options = {})
       render partial: "hourglass_ui/forms/fields/#{field}", locals: {form: form, entry: object}.merge(options)
     end
@@ -39,7 +31,7 @@ module Hourglass
     end
 
     def projects_for_project_select(selected = nil)
-      projects = User.current.projects.allowed_to_one_of *Hourglass::AccessControl.permissions_from_action(controller: 'hourglass/time_logs', action: 'book')
+      projects = User.current.projects.allowed_to_one_of *(Hourglass::AccessControl.permissions_from_action(controller: 'hourglass/time_logs', action: 'book') + Hourglass::AccessControl.permissions_from_action(controller: 'hourglass/time_bookings', action: 'change')).flatten
       project_tree_options_for_select projects, selected: selected do |project|
         {data: {
             round_default: Hourglass::Settings[:round_default, project: project],
@@ -50,6 +42,10 @@ module Hourglass
 
     def activity_collection(project = nil)
       project.present? ? project.activities : TimeEntryActivity.shared.active
+    end
+
+    def user_collection(project = nil)
+      project.present? ? project.users : User.active
     end
 
     def localized_hours_in_units(hours)
@@ -70,13 +66,19 @@ module Hourglass
       args.compact.join(' ')
     end
 
-    def convert_format_identifier(format)
-      format.gsub /%[HIMp]/,
-                  '%H' => 'HH',
-                  '%I' => 'hh',
-                  '%M' => 'mm',
-                  '%p' => 'TT',
-                  '%P' => 'tt'
+    def format_identifier_to_js(format)
+      {
+          '%b' => 'MMM',
+          '%B' => 'MMMM',
+          '%d' => 'DD',
+          '%m' => 'MM',
+          '%M' => 'mm',
+          '%H' => 'HH',
+          '%I' => 'hh',
+          '%p' => 'A',
+          '%P' => 'a',
+          '%Y' => 'YYYY'
+      }.inject(format) { |str, (k, v)| str.gsub(k, v) }
     end
   end
 end

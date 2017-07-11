@@ -2,24 +2,27 @@ class HourglassUiController < ApplicationController
   helper QueriesHelper
   helper IssuesHelper
   helper SortHelper
+  helper ContextMenusHelper
   helper Hourglass::ApplicationHelper
   helper Hourglass::UiHelper
   helper Hourglass::ListHelper
   helper Hourglass::ChartHelper
   helper Hourglass::ReportHelper
-
-  before_action :authorize_global, except: [:context_menu, :api_docs]
-  before_action :require_login, only: [:context_menu, :api_docs]
+  helper_method :date_time_format, :utc_offset, :date_time_strings_map
 
   include AuthorizationConcern
-  include SortHelper
+  include SortConcern
   include QueryConcern
   include ListConcern
+  include DateTimeParsing
 
   include HourglassUi::Overview
   include HourglassUi::TimeLogs
   include HourglassUi::TimeBookings
   include HourglassUi::TimeTrackers
+
+
+  before_action :require_login
 
   def context_menu
     list_type = get_list_type
@@ -31,10 +34,6 @@ class HourglassUiController < ApplicationController
   end
 
   private
-  def authorize_foreign
-    super { render_403 }
-  end
-
   def get_list_type
     list_type = %w(time_bookings time_logs time_trackers).select {|val| val == params[:list_type]}.first
     render_403 unless list_type

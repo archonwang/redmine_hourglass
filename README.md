@@ -14,7 +14,7 @@ _Note: This is a complete rewrite of the [Redmine Time Tracker Plugin](https://g
 
 _We already did some additions to the existing version, see [CHANGELOG.md](CHANGELOG.md) for details._
 
-___To ease migrating we added a function to import time entries from the redmine_time_tracker. You can find this in the plugin settings and as a rake task.___
+___To ease migrating we added a function to import time entries from the redmine_time_tracker. You can find this in the plugin settings and as a rake task. For more information about migrating from the old time tracker take a look on the [Migration Guide](https://github.com/hicknhack-software/redmine_hourglass/wiki/Migration-Guide)___
  
 ## Features
 - Per user time tracking
@@ -31,6 +31,7 @@ ___To ease migrating we added a function to import time entries from the redmine
 ## Requirements
 * Ruby >= 2.0.0
 * Redmine >= 3.0.0
+* An [ExecJS](https://github.com/sstephenson/execjs) compatible runtime, the gemfile includes [therubyracer](https://github.com/cowboyd/therubyracer) for unix based systems and windows ships with a default js interpreter (from Win 7 upwards), so most people should be set. If you happen to have problems like for example [#29](https://github.com/hicknhack-software/redmine_hourglass/issues/29), take a look on the linked ExecJS and install one of the mentioned runtimes.
 
 See [.travis.yml](.travis.yml) for details about supported version. If a newer version doesn't appear in there, feel free to open an issue and report your experience with that redmine or ruby version.
 
@@ -42,7 +43,7 @@ See [.travis.yml](.travis.yml) for details about supported version. If a newer v
 1. Run `rake redmine:plugins:assets RAILS_ENV=production`. (If you redmine is deployed in a subfolder like `www.example.com/redmine` you need to add `RAILS_RELATIVE_URL_ROOT=/redmine` to that task like this `rake redmine:plugins:assets RAILS_ENV=production RAILS_RELATIVE_URL_ROOT=/redmine`)
 1. (Re)start your redmine
 1. The plugin is now installed and can be used.
-1. (Optional) If you want to use the API documentation run `rake redmine:plugins:hourglass:api_docs` 
+1. __(Optional, not needed for normal use)__ If you want to use the API documentation run `rake redmine:plugins:hourglass:api_docs`. If this doesn't work out of the box execute the migrations for the test database: `rake db:migrate RAILS_ENV=test` and `rake redmine:plugins:migrate RAILS_ENV=test`. Call the `api_docs` rake task again afterwards (without any `RAILS_ENV`). __WARNING: Be careful with this, if you use only one single database url for your production server, then executing migrate with another RAILS_ENV than production will wipe out your data! We are aware of that problem and thinking about a good fix.__
 
 ## Update
 

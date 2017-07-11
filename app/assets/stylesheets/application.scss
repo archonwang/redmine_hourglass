@@ -1,5 +1,3 @@
-//= require jquery-ui-timepicker-addon
-
 @mixin form-row {
   .form-row {
     width: 100%;
@@ -33,6 +31,10 @@
 }
 
 .controller-hourglass_ui {
+  .hasDatepicker {
+    width: 13em;
+  }
+
   .time-tracker-control {
     margin-bottom: 30px;
     form {

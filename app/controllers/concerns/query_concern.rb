@@ -23,8 +23,8 @@ module QueryConcern
     @query_identifier
   end
 
-  def retrieve_query
-    @query = if params[:set_filter] == '1' || session[session_query_var_name].nil?
+  def retrieve_query(force_new: params[:set_filter] == '1')
+    @query = if force_new || session[session_query_var_name].nil?
                new_query
              elsif params[:query_id].present?
                query_from_id
@@ -32,7 +32,7 @@ module QueryConcern
                query_from_session
              end
     @query.project = @project
-    @query.add_filter 'user_id', '=', ['me'] unless allowed_to?("#{query_identifier}_foreign")
+    @query.add_filter 'user_id', '=', ['me'] unless policy(@query_class.queried_class).allowed_to?(:view_foreign)
   end
 
   def session_query_var_name

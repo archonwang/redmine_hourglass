@@ -36,9 +36,23 @@ updateActivityField = ($activityField, $projectField) ->
           $activityField.val id if selected_activity is name
       hourglass.FormValidator.validateField $activityField
 
+updateUserField = ($userField, $projectField) ->
+  selected_user = $userField.find("option:selected").text()
+  $.ajax
+    url: hourglassRoutes.hourglass_completion_users()
+    data:
+      project_id: $projectField.val()
+    success: (users) ->
+      $userField.find('option[value!=""]').remove()
+      for {id, name} in users
+        do ->
+          $userField.append $('<option/>', value: id).text(name)
+          $userField.val id if selected_user is name
+      hourglass.FormValidator.validateField $userField
+
 updateDurationField = ($startField, $stopField) ->
-  start = moment($startField.val(), moment.ISO_8601)
-  stop = moment($stopField.val(), moment.ISO_8601)
+  start = moment(hourglass.Utils.detranslateDateTime($startField.val()), window.hourglass.DateTimeFormat)
+  stop = moment(hourglass.Utils.detranslateDateTime($stopField.val()), window.hourglass.DateTimeFormat)
   $startField.closest('form').find('.js-duration').val hourglass.Utils.formatDuration moment.duration stop.diff(start)
 
 formFieldChanged = (event) ->
@@ -67,7 +81,9 @@ durationFieldChanged = (event) ->
   return if $durationField.hasClass('invalid')
   $startField = $durationField.closest('form').find('[name*=start]')
   $stopField = $durationField.closest('form').find('[name*=stop]')
-  $stopField.val moment($startField.val(), moment.ISO_8601).add(hourglass.Utils.parseDuration $durationField.val()).format()
+  start = moment hourglass.Utils.detranslateDateTime($startField.val()), window.hourglass.DateTimeFormat
+  duration = hourglass.Utils.parseDuration $durationField.val()
+  $stopField.val start.add(duration).format(window.hourglass.DateTimeFormat)
   hourglass.FormValidator.validateField $stopField
 
 projectFieldChanged = (event) ->
@@ -75,6 +91,7 @@ projectFieldChanged = (event) ->
   $form = $projectField.closest('form')
   $issueTextField = $form.find('.js-issue-autocompletion')
   $activityField = $form.find('[name*=activity_id]')
+  $userField = $form.find('[name*=user_id]')
 
   round = $projectField.find(':selected').data('round-default')
   $form.find('[type=checkbox][name*=round]').prop('checked', round) unless round is null
@@ -86,6 +103,7 @@ projectFieldChanged = (event) ->
   $issueTextField.val('').trigger('change') unless $issueTextField.val() is '' or event.type is 'changefromissue'
   hourglass.FormValidator.validateField $projectField if event.type is 'changefromissue'
   updateActivityField $activityField, $projectField
+  updateUserField $userField, $projectField if $userField.length > 0
 
 issueFieldChanged = ->
   $issueTextField = $(@)
@@ -126,8 +144,8 @@ checkSplitting = ->
   timeLogId = $form.data('timeLogId')
   $startField = $form.find('[name*=start]')
   $stopField = $form.find('[name*=stop]')
-  mStart = moment $startField.val()
-  mStop = moment $stopField.val()
+  mStart = moment hourglass.Utils.detranslateDateTime($startField.val()), window.hourglass.DateTimeFormat
+  mStop = moment hourglass.Utils.detranslateDateTime($stopField.val()), window.hourglass.DateTimeFormat
   round = $form.find('[type=checkbox][name*=round]').prop('checked')
   stopJqXhr = if mStop.isBefore $stopField.data('mLimit')
     split timeLogId, mStop, false, round
